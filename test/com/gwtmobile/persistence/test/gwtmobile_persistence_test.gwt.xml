@@ -5,6 +5,7 @@
 	<inherits name="com.google.gwt.user.User" />
 	<inherits name="com.google.gwt.json.JSON" />
 	<inherits name='com.gwtmobile.persistence.gwtmobile_persistence'/>
+	<inherits name="com.google.gwt.junit.JUnit"/>
 	
 	<source path="client"/>
 	<source path="domain"/>
