@@ -1,5 +1,4 @@
-lib
-classes
+sclasses
 *~
 war/com.*
 tomcat
