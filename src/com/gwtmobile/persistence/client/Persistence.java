@@ -225,4 +225,10 @@ public class Persistence {
 		return new $wnd.persistence.OrFilter(filter1, filter2);
 	}-*/;
 
+	private static native void sync_getJSON(String url, ScalarCallback callback) /*-{
+		$wnd.persistence.sync.getJSON(url, function(data) {
+	    	same(data, {status: 'ok'}, "Remote reset");
+		});
+	}-*/;
+
 }

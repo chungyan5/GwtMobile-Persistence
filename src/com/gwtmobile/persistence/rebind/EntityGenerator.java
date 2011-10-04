@@ -95,6 +95,7 @@ public class EntityGenerator implements ClassGenerator {
 					utils.println("hasOne(nativeEntity, \"%s\", hasOne%s.getNativeObject());", 
 							hasOneRelColName, hasOneRelColName);
 				}
+				utils.println("enableSync(nativeEntity, \"/\" + \"%s\" + \"Updates\");", requestedClassName);
 			}
 		});
 		
@@ -231,6 +232,17 @@ public class EntityGenerator implements ClassGenerator {
 					@Override
 					public void generateMethod() {
 						utils.println("nativeEntity.hasOne(collName, otherEntity);");
+					}
+				});
+
+		utils.generateNativeMethod("private static", "void", "enableSync",
+				new String[][] {
+					{"JavaScriptObject", "nativeEntity"},
+					{"String", "controllerPath"}},
+				new MethodGenerator() {
+					@Override
+					public void generateMethod() {
+						utils.println("nativeEntity.enableSync(controllerPath);");
 					}
 				});
 
