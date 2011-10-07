@@ -24,12 +24,16 @@ public class PersistenceSync {
 
 	public static native void getJSON(String url, ScalarCallback<String> callback) /*-{
 		$wnd.persistence.sync.getJSON(url, 
-			function(jsonResult) {
-				callback.@com.gwtmobile.persistence.client.Persistence::processStringCallback(Ljava/lang/String;Lcom/gwtmobile/persistence/client/ScalarCallback;)(jsonResult, callback);
-//				callback.@com.gwtmobile.persistence.client.Callback::onSuccess()();
+			function(result) {
+				@com.gwtmobile.persistence.client.PersistenceSync::processStringCallback(Ljava/lang/String;Lcom/gwtmobile/persistence/client/ScalarCallback;)(JSON.stringify(result), callback);
 			}
 		);
 	
 	}-*/;
 
+	@SuppressWarnings("unused")
+	private static void processStringCallback(String result, ScalarCallback<String> callback) {
+		callback.onSuccess(result);
+	}
+	
 }
