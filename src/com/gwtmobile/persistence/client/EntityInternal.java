@@ -130,5 +130,29 @@ public abstract class EntityInternal<T extends Persistable> implements Entity<T>
 		}else {
 			nativeObject.index(columns);
 		}		
-	}-*/;	
+	}-*/;
+	
+	private ScalarCallback<String> conflict_callback;
+	
+	@SuppressWarnings("unused")
+	private void processConflictCallback(String result) {
+		this.conflict_callback.onSuccess(result);
+	}
+	
+	public native void onConflictHandler(JavaScriptObject conflicts, JavaScriptObject updatesToPush, JavaScriptObject persistence_sync_internal_callback) /*-{
+		$entry(
+			this.@com.gwtmobile.persistence.client.EntityInternal::processConflictCallback(Ljava/lang/String;)(JSON.stringify(conflicts))
+		);																					// application code
+		persistence_sync_internal_callback();
+	}-*/;
+	
+	public void syncAll(ScalarCallback<String> conflict_callback, Callback callback) {
+		this.conflict_callback = conflict_callback;
+		syncAll(getNativeObject(), callback);
+	}
+	  
+	public native void syncAll(JavaScriptObject nativeEntity, Callback callback) /*-{
+	    nativeEntity.syncAll(onConflictHandler, callback);
+	}-*/;
+	
 }

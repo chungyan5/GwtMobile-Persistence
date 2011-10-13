@@ -246,7 +246,7 @@ public class EntityGenerator implements ClassGenerator {
 					}
 				});
 
-		utils.generateNativeMethod("public static", "void", "syncAll",
+		/*utils.generateNativeMethod("public static", "void", "syncAll",
 				new String[][] {
 					{"JavaScriptObject", "nativeEntity"}},
 				new MethodGenerator() {
@@ -254,7 +254,7 @@ public class EntityGenerator implements ClassGenerator {
 					public void generateMethod() {
 						utils.println("nativeEntity.syncAll();");
 					}
-				});
+				});*/
 
 		String superClass = null;
 		String[] interfaces = null;
