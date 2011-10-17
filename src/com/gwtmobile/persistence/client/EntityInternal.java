@@ -139,20 +139,24 @@ public abstract class EntityInternal<T extends Persistable> implements Entity<T>
 		this.conflict_callback.onSuccess(result);
 	}
 	
-	public native void onConflictHandler(JavaScriptObject conflicts, JavaScriptObject updatesToPush, JavaScriptObject persistence_sync_internal_callback) /*-{
-		$entry(
-			this.@com.gwtmobile.persistence.client.EntityInternal::processConflictCallback(Ljava/lang/String;)(JSON.stringify(conflicts))
-		);																					// application code
-		persistence_sync_internal_callback();
+	public final native JavaScriptObject onConflictHandler() /*-{
+		return function(conflicts, updatesToPush, persistence_sync_internal_callback) {
+			$entry(
+				this.@com.gwtmobile.persistence.client.EntityInternal::processConflictCallback(Ljava/lang/String;)(JSON.stringify(conflicts))
+			);																					// application code
+			persistence_sync_internal_callback();
+		}; 
 	}-*/;
 	
 	public void syncAll(ScalarCallback<String> conflict_callback, Callback callback) {
 		this.conflict_callback = conflict_callback;
-		syncAll(getNativeObject(), callback);
+		syncAll(getNativeObject(), onConflictHandler(), callback);
 	}
 	  
-	public native void syncAll(JavaScriptObject nativeEntity, Callback callback) /*-{
-	    nativeEntity.syncAll(onConflictHandler, callback);
+	public native void syncAll(JavaScriptObject nativeEntity, JavaScriptObject ConflictHandler, Callback callback) /*-{
+	    nativeEntity.syncAll(ConflictHandler, function() {
+			callback.@com.gwtmobile.persistence.client.Callback::onSuccess()();
+		});
 	}-*/;
 	
 }
