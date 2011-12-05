@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder
+	xmlns:ui="urn:ui:com.google.gwt.uibinder"
+	xmlns:g="urn:import:com.google.gwt.user.client.ui"
+	xmlns:m="urn:import:com.gwtmobile.ui.client.widgets">
+
+	<ui:style>
+		.flex > div > * {
+			-webkit-box-flex: 1;
+			margin: 0 .5em 0 .5em;
+		}
+	</ui:style>
+	
+<!-- Main View Layout ========================================================== -->
+	<g:HTMLPanel>
+	
+	<!-- Main View Layout ==========================================================
+	List all Tags(selectable)   Composite of Tag (with selected), in TextInput
+	   …..                   	     Del, Modify, create new, clear composite
+	   …..
+	   …..						  Button for Tag Attach Items, Button for Restore Db -->
+		<m:PanelBase>
+			<m:ListPanel selectable="false" showArrow="false" styleName="ListPanel {style.flex}" >
+				<m:ListItem>
+					<m:TextBox ui:field="tagNewName"></m:TextBox>
+					<m:Button ui:field="tagNew" styleName="Button" >Add a New Tag</m:Button>
+				</m:ListItem>
+				<m:ListItem>
+					<m:DropDownList ui:field="tagList"></m:DropDownList>
+					<m:Button ui:field="tagDel" styleName="Button">Remove this Tag</m:Button>
+				</m:ListItem>
+				<m:ListItem>
+					<m:TextBox ui:field="tagModifiedName"></m:TextBox>
+					<m:Button ui:field="tagModify" styleName="Button">Modify this Tag</m:Button>
+				</m:ListItem>
+				<m:ListItem>
+					<m:Button ui:field="tagAttachItems" styleName="Button">Tag Attach Items</m:Button>
+					<m:Button ui:field="Sync2Server" styleName="Button">Sync to Server</m:Button>
+				</m:ListItem>
+			</m:ListPanel>
+		</m:PanelBase>
+
+	<!-- Main View Layout ==========================================================
+	List all Item(selectable)   Composite of Tag (with selected), in TextInput
+	   …..                   	     Del, Modify, create new, clear composite
+	   …..
+	   …..						  Button for Tag Attach Items, Button for Restore Db -->
+		<m:PanelBase>
+			<m:ListPanel selectable="false" showArrow="false" styleName="ListPanel {style.flex}">
+				<m:ListItem>
+					<m:TextArea ui:field="itemNewName"></m:TextArea>
+					<m:Button ui:field="itemNew">Add a New Item</m:Button>
+				</m:ListItem>
+				<m:ListItem>
+					<m:DropDownList ui:field="itemList">
+					</m:DropDownList>
+					<m:Button ui:field="itemDel">Remove This Item</m:Button>
+				</m:ListItem>
+				<m:ListItem>
+					<m:TextArea ui:field="itemModifiedName"></m:TextArea>
+					<m:Button ui:field="itemModify">Modify this Item</m:Button>
+				</m:ListItem>
+				<m:ListItem>
+					<m:Button ui:field="itemAttachTags">Item Attach Tags</m:Button>
+				</m:ListItem>
+			</m:ListPanel>
+		</m:PanelBase>
+		
+	</g:HTMLPanel>
+</ui:UiBinder>

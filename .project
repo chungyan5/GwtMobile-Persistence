@@ -3,6 +3,9 @@
 	<name>gwtmobile-persistence</name>
 	<comment></comment>
 	<projects>
+		<project>gwtmobile-phonegap</project>
+		<project>gwtmobile-ui</project>
+		<project>persistencejs-sync</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

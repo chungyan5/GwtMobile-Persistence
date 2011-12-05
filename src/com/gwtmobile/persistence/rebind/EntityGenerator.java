@@ -51,6 +51,7 @@ public class EntityGenerator implements ClassGenerator {
 		utils.factory().addImport("com.google.gwt.core.client.GWT");
 		utils.factory().addImport("com.google.gwt.json.client.*");
 		utils.factory().addImport("com.gwtmobile.persistence.client.*");
+//		utils.factory().addImport("com.gwtmobile.persistence.client.domain.Item2MntTagTable");
 	}
 	private void setSuperClass() {
 		utils.factory().setSuperclass("EntityInternal<" + requestedClassName + ">");
@@ -59,7 +60,7 @@ public class EntityGenerator implements ClassGenerator {
 		StringBuilder sb = new StringBuilder();
 		sb.append(String.format("Persistence.define(\"%s\", new HashMap<String, String> () {{\n", requestedClassName));
 		for (JMethod getter : getters) {
-			String propertyName = getter.getName().substring(3);
+			String propertyName = getter.getName().substring(3,4).toLowerCase() + getter.getName().substring(4);
 			String propertyType = utils.getSQLiteType(getter.getReturnType());
 			sb.append(String.format("\tput(\"%s\", \"%s\");\n", propertyName, propertyType));
 		}
@@ -87,8 +88,11 @@ public class EntityGenerator implements ClassGenerator {
 			public void generateMethod() {
 				for (JMethod hasManyRel : hasManyRels) {
 					String hasManyRelName = hasManyRel.getName().substring(3);
-					utils.println("hasMany(nativeEntity, \"%s\", hasMany%s.getNativeObject(), hasMany%s.getInverseRelationName(\"%s\"));", 
-							hasManyRelName, hasManyRelName, hasManyRelName, requestedClassName);
+//					utils.println("many2ManyTableName = hasMany(nativeEntity, \"%s\", hasMany%s.getNativeObject(), hasMany%s.getInverseRelationName(\"%s\"));", 
+//							hasManyRelName, hasManyRelName, hasManyRelName, requestedClassName);
+                    utils.println("hasMany(nativeEntity, \"%s\", hasMany%s.getNativeObject(), hasMany%s.getInverseRelationName(\"%s\"));", 
+                            hasManyRelName, hasManyRelName, hasManyRelName, requestedClassName);
+//					utils.println("if (many2ManyTableName.length()!=0) many2ManyTableEntity = GWT.create(Item2MntTagTable.class);");
 				}
 				for (JMethod hasOneRel : hasOneRels) {
 					String hasOneRelColName = hasOneRel.getName().substring(3);
@@ -210,6 +214,7 @@ public class EntityGenerator implements ClassGenerator {
 					}
 				});
 
+//        utils.generateNativeMethod("private static", "String", "hasMany",
 		utils.generateNativeMethod("private static", "void", "hasMany",
 				new String[][] {
 					{"JavaScriptObject", "nativeEntity"},
@@ -220,6 +225,9 @@ public class EntityGenerator implements ClassGenerator {
 					@Override
 					public void generateMethod() {
 						utils.println("nativeEntity.hasMany(collName, otherEntity, invRel);");
+//						utils.println("if (otherEntity.meta.hasMany[invRel]) {");
+//						utils.println("		return otherEntity.meta.hasMany[invRel].tableName;}");
+//						utils.println("return \"\";");
 					}
 				});
 
@@ -245,16 +253,6 @@ public class EntityGenerator implements ClassGenerator {
 						utils.println("nativeEntity.enableSync(controllerPath);");
 					}
 				});
-
-		/*utils.generateNativeMethod("public static", "void", "syncAll",
-				new String[][] {
-					{"JavaScriptObject", "nativeEntity"}},
-				new MethodGenerator() {
-					@Override
-					public void generateMethod() {
-						utils.println("nativeEntity.syncAll();");
-					}
-				});*/
 
 		String superClass = null;
 		String[] interfaces = null;

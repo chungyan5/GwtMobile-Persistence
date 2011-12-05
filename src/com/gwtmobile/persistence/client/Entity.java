@@ -42,5 +42,5 @@ public interface Entity<T extends Persistable> {
 	public void index(String column, boolean unique);
 	public void index(String[] columns);
 	public void index(String[] columns, boolean unique);
-	public void syncAll(ScalarCallback<String> conflict_callback, Callback callback);
+	public void syncAll(ConflictCallback conflict_callback, Callback callback);
 }

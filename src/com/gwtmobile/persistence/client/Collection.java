@@ -31,8 +31,10 @@ public interface Collection<T extends Persistable>{
 	public Collection<T> order(String property, boolean ascending);
 	public Collection<T> limit(int n);
 	public Collection<T> skip(int n);
-	public void add(T obj);
-	public void remove(T obj);
+//	public void add(T obj, Persistable masterObj);
+//	public void remove(T obj, Persistable masterObj);
+    public void add(T obj);
+    public void remove(T obj);
 	public void list(Transaction tx, CollectionCallback<T> callback);
 	public void list(CollectionCallback<T> callback);
 	public void each(Transaction tx, ScalarCallback<T> callback);

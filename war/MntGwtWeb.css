@@ -1,0 +1,4 @@
+@CHARSET "UTF-8";
+.selectTags { background-color: magenta; }
+.relatedTags { background-color: Skyblue; }
+.relatedItems { background-color: Orange; }

@@ -609,7 +609,8 @@ public class TestPersistence extends GWTTestCase {
 								t.setJson((JSONObject) JSONParser.parse("{\"symbol\": \"ABC\", \"price\": 96.204659543522}"));
 							}
 							t.setCategory(c);
-							t.getTags().add(tag);
+//							t.getTags().add(tag, t);
+                            t.getTags().add(tag);
 						}
 						Persistence.flush(callback);
 					}

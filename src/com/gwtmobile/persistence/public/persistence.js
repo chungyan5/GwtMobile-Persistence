@@ -23,23 +23,26 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// Some set-up code for non-browser environments
-if(typeof window === 'undefined') {
-  window = {};
+if (typeof exports !== 'undefined') {
+	exports.createPersistence = function() {
+		return initPersistence({})
+	}
+	var singleton;
+	exports.__defineGetter__("persistence", function () {
+    	if (!singleton)
+	  		singleton = exports.createPersistence();
+	  	return singleton;
+	});
 }
-if(typeof exports !== 'undefined') {
-  exports.console = console;
+else {
+	window = window || {};
+	window.persistence = initPersistence(window.persistence || {});
 }
 
-var persistence = (window && window.persistence) ? window.persistence : createPersistence();
 
-if(typeof exports !== 'undefined') {
-  exports.createPersistence = createPersistence;
-  exports.persistence = persistence;
-}
-
-function createPersistence() {
-  var persistence = {};
+function initPersistence(persistence) {
+	if (persistence.isImmutable) // already initialized
+		return persistence;
 
 /**
  * Check for immutable fields
@@ -84,11 +87,12 @@ persistence.get = function(arg1, arg2) {
     // Per-session data
     persistence.trackedObjects = {};
     persistence.objectsToRemove = {};
+    persistence.objectsRemoved = []; // {id: ..., type: ...}
     persistence.globalPropertyListeners = {}; // EntityType__prop -> QueryColleciton obj
     persistence.queryCollectionCache = {}; // entityName -> uniqueString -> QueryCollection
 
-    persistence.getObjectsToRemove = function() { return this.objectsToRemove; }
-    persistence.getTrackedObjects = function() { return this.trackedObjects; }
+    persistence.getObjectsToRemove = function() { return this.objectsToRemove; };
+    persistence.getTrackedObjects = function() { return this.trackedObjects; };
 
     // Public Extension hooks
     persistence.entityDecoratorHooks = [];
@@ -113,7 +117,20 @@ persistence.get = function(arg1, arg2) {
       }
     }
 
+    persistence.unsubscribeFromGlobalPropertyListener = function(coll, entityName, property) {
+      var key = entityName + '__' + property;
+      var listeners = this.globalPropertyListeners[key];
+      for(var i = 0; i < listeners.length; i++) {
+        if(listeners[i] === coll) {
+          listeners.splice(i, 1);
+          return;
+        }
+      }
+    }
+
     persistence.propertyChanged = function(obj, property, oldValue, newValue) {
+      if(!this.trackedObjects[obj.id]) return; // not yet added, ignore for now
+
       var entityName = obj._type;
       var key = entityName + '__' + property;
       if(key in this.globalPropertyListeners) {
@@ -155,6 +172,7 @@ persistence.get = function(arg1, arg2) {
     }
 
     persistence.getMeta = getMeta;
+    
 
     /**
      * A database session
@@ -162,6 +180,7 @@ persistence.get = function(arg1, arg2) {
     function Session(conn) {
       this.trackedObjects = {};
       this.objectsToRemove = {};
+      this.objectsRemoved = [];
       this.globalPropertyListeners = {}; // EntityType__prop -> QueryColleciton obj
       this.queryCollectionCache = {}; // entityName -> uniqueString -> QueryCollection
       this.conn = conn;
@@ -242,6 +261,13 @@ persistence.get = function(arg1, arg2) {
       if(!obj) return;
       if (!this.trackedObjects[obj.id]) {
         this.trackedObjects[obj.id] = obj;
+        if(obj._new) {
+          for(var p in obj._data) {
+            if(obj._data.hasOwnProperty(p)) {
+              this.propertyChanged(obj, p, undefined, obj._data[p]);
+            }
+          }
+        }
       }
       return this;
     };
@@ -254,6 +280,7 @@ persistence.get = function(arg1, arg2) {
       if (!this.objectsToRemove[obj.id]) {
         this.objectsToRemove[obj.id] = obj;
       }
+      this.objectsRemoved.push({id: obj.id, entity: obj._type});
       this.objectRemoved(obj);
       return this;
     };
@@ -265,6 +292,7 @@ persistence.get = function(arg1, arg2) {
     persistence.clean = function () {
       this.trackedObjects = {};
       this.objectsToRemove = {};
+      this.objectsRemoved = [];
       this.globalPropertyListeners = {};
       this.queryCollectionCache = {};
     };
@@ -281,11 +309,11 @@ persistence.get = function(arg1, arg2) {
       array = array.slice(0); // Just to be sure
       function processOne() {
         var item = array.pop();
-        fn(item, function(result) {
+        fn(item, function(result, err) {
             if(array.length > 0) {
               processOne();
             } else {
-              callback();
+              callback(result, err);
             }
           });
       }
@@ -306,14 +334,15 @@ persistence.get = function(arg1, arg2) {
      */
     persistence.asyncParForEach = function(array, fn, callback) {
       var completed = 0;
-      if(array.length === 0) {
+      var arLength = array.length;
+      if(arLength === 0) {
         callback();
       }
-      for(var i = 0; i < array.length; i++) {
-        fn(array[i], function() {
+      for(var i = 0; i < arLength; i++) {
+        fn(array[i], function(result, err) {
             completed++;
-            if(completed === array.length) {
-              callback();
+            if(completed === arLength) {
+              callback(result, err);
             }
           });
       }
@@ -333,7 +362,7 @@ persistence.get = function(arg1, arg2) {
       /**
        * @constructor
        */
-      function Entity (session, obj) {
+      function Entity (session, obj, noEvents) {
         var args = argspec.getArgs(arguments, [
             { name: "session", optional: true, check: persistence.isSession, defaultValue: persistence },
             { name: "obj", optional: true, check: function(obj) { return obj; }, defaultValue: {} }
@@ -344,7 +373,7 @@ persistence.get = function(arg1, arg2) {
         obj = args.obj;
 
         var that = this;
-        this.id = createUUID();
+        this.id = obj.id || persistence.createUUID();
         this._new = true;
         this._type = entityName;
         this._dirtyProperties = {};
@@ -384,6 +413,7 @@ persistence.get = function(arg1, arg2) {
                 persistence.defineProp(that, ref, function(val) {
                     // setterCallback
                     var oldValue = that._data[ref];
+                    var oldValueObj = that._data_obj[ref] || session.trackedObjects[that._data[ref]];
                     if (val == null) {
                       that._data[ref] = null;
                       that._data_obj[ref] = undefined;
@@ -402,9 +432,28 @@ persistence.get = function(arg1, arg2) {
                     that._dirtyProperties[ref] = oldValue;
                     that.triggerEvent('set', that, ref, val);
                     that.triggerEvent('change', that, ref, val);
+                    // Inverse
+                    if(meta.hasOne[ref].inverseProperty) {
+                      var newVal = that[ref];
+                      if(newVal) {
+                        var inverse = newVal[meta.hasOne[ref].inverseProperty];
+                        if(inverse.list && inverse._filter) {
+                          inverse.triggerEvent('change', that, ref, val);
+                        }
+                      }
+                      if(oldValueObj) {
+                        console.log("OldValue", oldValueObj);
+                        var inverse = oldValueObj[meta.hasOne[ref].inverseProperty];
+                        if(inverse.list && inverse._filter) {
+                          inverse.triggerEvent('change', that, ref, val);
+                        }
+                      }
+                    }
                   }, function() {
                     // getterCallback
-                    if (!that._data[ref] || that._data_obj[ref] !== undefined) {
+                    if (!that._data[ref]) {
+                      return null;
+                    } else if(that._data_obj[ref] !== undefined) {
                       return that._data_obj[ref];
                     } else if(that._data[ref] && session.trackedObjects[that._data[ref]]) {
                       that._data_obj[ref] = session.trackedObjects[that._data[ref]];
@@ -485,9 +534,15 @@ persistence.get = function(arg1, arg2) {
           }
         }
 
+        if(this.initialize) {
+          this.initialize();
+        }
+
         for ( var f in obj) {
           if (obj.hasOwnProperty(f)) {
-            persistence.set(that, f, obj[f]);
+            if(f !== 'id') {
+              persistence.set(that, f, obj[f]);
+            }
           }
         }
       } // Entity
@@ -625,7 +680,7 @@ persistence.get = function(arg1, arg2) {
             if(p === 'id') {
               item.id = that.id;
             } else if(meta.hasOne[p]) {
-              item[p] = {id: itemData[p]};
+              item[p] = itemData[p] ? {id: itemData[p]} : null;
             } else {
               item[p] = persistence.entityValToJson(itemData[p], fieldSpec[p]);
             }
@@ -634,11 +689,16 @@ persistence.get = function(arg1, arg2) {
 
         persistence.asyncForEach(properties, function(p, callback) {
           if(meta.hasOne[p]) {
-            that.fetch(session, tx, p, function(obj) {
-                buildJSON(obj, tx, includeProperties[p], function(result) {
-                    item[p] = result;
-                    callback();
-                  });
+            that.fetch(tx, p, function(obj) {
+                if(obj) {
+                  buildJSON(obj, tx, includeProperties[p], function(result) {
+                      item[p] = result;
+                      callback();
+                    });
+                } else {
+                  item[p] = null;
+                  callback();
+                }
               });
           } else if(meta.hasMany[p]) {
             persistence.get(that, p).list(function(objs) {
@@ -662,19 +722,19 @@ persistence.get = function(arg1, arg2) {
         });
       }; // End of buildJson
 
-      Entity.prototype.fetch = function(session, tx, rel, callback) {
+      Entity.prototype.fetch = function(tx, rel, callback) {
         var args = argspec.getArgs(arguments, [
-            { name: 'session', optional: true, check: persistence.isSession, defaultValue: persistence },
             { name: 'tx', optional: true, check: persistence.isTransaction, defaultValue: null },
             { name: 'rel', optional: false, check: argspec.hasType('string') },
             { name: 'callback', optional: false, check: argspec.isCallback() }
           ]);
-        session = args.session;
         tx = args.tx;
         rel = args.rel;
         callback = args.callback;
 
         var that = this;
+        var session = this._session;
+
         if(!tx) {
           session.transaction(function(tx) {
               that.fetch(tx, rel, callback);
@@ -691,9 +751,10 @@ persistence.get = function(arg1, arg2) {
           }
         } else {
           var type = meta.hasOne[rel].type;
-          if (type.meta.isMixin)
+          if (type.meta.isMixin) {
             type = getEntity(this._data[rel + '_class']);
-          type.load(tx, this._data[rel], function(obj) {
+          }
+          type.load(session, tx, this._data[rel], function(obj) {
               that._data_obj[rel] = obj;
               if(callback) {
                 callback(obj);
@@ -714,7 +775,10 @@ persistence.get = function(arg1, arg2) {
        * of this entity in the database
        */
       Entity.all = function(session) {
-        session = session || persistence;
+        var args = argspec.getArgs(arguments, [
+            { name: 'session', optional: true, check: persistence.isSession, defaultValue: persistence }
+          ]);
+        session = args.session;
         return session.uniqueQueryCollection(new AllDbQueryCollection(session, entityName));
       };
 
@@ -741,13 +805,19 @@ persistence.get = function(arg1, arg2) {
           jsonObj = JSON.parse(jsonObj);
         }
 
+        if(!jsonObj) {
+          callback(null);
+          return;
+        }
+
         function loadedObj(obj) {
           if(!obj) {
-            obj = new Entity();
+            obj = new Entity(session);
             if(jsonObj.id) {
               obj.id = jsonObj.id;
             }
           }
+          session.add(obj);
           var expensiveProperties = [];
           for(var p in jsonObj) {
             if(jsonObj.hasOwnProperty(p)) {
@@ -796,7 +866,7 @@ persistence.get = function(arg1, arg2) {
         if(jsonObj.id) {
           Entity.load(session, tx, jsonObj.id, loadedObj);
         } else {
-          loadedObj(new Entity());
+          loadedObj(new Entity(session));
         }
       };
 
@@ -898,9 +968,10 @@ persistence.get = function(arg1, arg2) {
         }
       }
 
-      Entity.hasOne = function (refName, otherEntity) {
+      Entity.hasOne = function (refName, otherEntity, inverseProperty) {
         meta.hasOne[refName] = {
-          type: otherEntity
+          type: otherEntity,
+          inverseProperty: inverseProperty
         };
         if (otherEntity.meta.isMixin)
           meta.fields[refName + "_class"] = persistence.typeMapper ? persistence.typeMapper.classNameType : "TEXT";
@@ -944,7 +1015,11 @@ persistence.get = function(arg1, arg2) {
       if(type) {
         switch(type) {
         case 'DATE':
-          return new Date(value * 1000);
+          if(typeof value === 'number') {
+            return new Date(value * 1000);
+          } else {
+            return null;
+          }
           break;
         default:
           return value;
@@ -998,36 +1073,50 @@ persistence.get = function(arg1, arg2) {
         }
       }
 
-      var finishedCount = 0;
       var result = {};
-      for(var i = 0; i < entities.length; i++) {
-        (function() {
-            var Entity = entities[i];
-            Entity.all().list(tx, function(all) {
-                result[Entity.meta.name] = all.map(function(e) {
-                    var rec = {};
-                    var fields = Entity.meta.fields;
-                    for(var f in fields) {
-                      if(fields.hasOwnProperty(f)) {
-                        rec[f] = persistence.entityValToJson(e._data[f], fields[f]);
-                      }
+      persistence.asyncParForEach(entities, function(Entity, callback) {
+          Entity.all().list(tx, function(all) {
+              var items = [];
+              persistence.asyncParForEach(all, function(e, callback) {
+                  var rec = {};
+                  var fields = Entity.meta.fields;
+                  for(var f in fields) {
+                    if(fields.hasOwnProperty(f)) {
+                      rec[f] = persistence.entityValToJson(e._data[f], fields[f]);
                     }
-                    var refs = Entity.meta.hasOne;
-                    for(var r in refs) {
-                      if(refs.hasOwnProperty(r)) {
-                        rec[r] = e._data[r];
-                      }
+                  }
+                  var refs = Entity.meta.hasOne;
+                  for(var r in refs) {
+                    if(refs.hasOwnProperty(r)) {
+                      rec[r] = e._data[r];
                     }
-                    rec.id = e.id;
-                    return rec;
-                  });
-                finishedCount++;
-                if(finishedCount === entities.length) {
-                  callback(result);
-                }
-              });
-          }());
-      }
+                  }
+                  var colls = Entity.meta.hasMany;
+                  var collArray = [];
+                  for(var coll in colls) {
+                    if(colls.hasOwnProperty(coll)) {
+                      collArray.push(coll);
+                    }
+                  }
+                  persistence.asyncParForEach(collArray, function(collP, callback) {
+                      var coll = persistence.get(e, collP);
+                      coll.list(tx, function(results) {
+                          rec[collP] = results.map(function(r) { return r.id; });
+                          callback();
+                        });
+                    }, function() {
+                      rec.id = e.id;
+                      items.push(rec);
+                      callback();
+                    });
+                }, function() {
+                  result[Entity.meta.name] = items;
+                  callback();
+                });
+            });
+        }, function() {
+          callback(result);
+        });
     };
 
     /**
@@ -1047,6 +1136,8 @@ persistence.get = function(arg1, arg2) {
       callback = args.callback;
 
       var finishedCount = 0;
+      var collItemsToAdd = [];
+      var session = this;
       for(var entityName in dump) {
         if(dump.hasOwnProperty(entityName)) {
           var Entity = getEntity(entityName);
@@ -1055,10 +1146,22 @@ persistence.get = function(arg1, arg2) {
           for(var i = 0; i < instances.length; i++) {
             var instance = instances[i];
             var ent = new Entity();
+            ent.id = instance.id;
             for(var p in instance) {
               if(instance.hasOwnProperty(p)) {
                 if (persistence.isImmutable(p)) {
                   ent[p] = instance[p];
+                } else if(Entity.meta.hasMany[p]) { // collection
+                  var many = Entity.meta.hasMany[p];
+                  if(many.manyToMany && Entity.meta.name < many.type.meta.name) { // Arbitrary way to avoid double adding
+                    continue;
+                  }
+                  var coll = persistence.get(ent, p);
+                  if(instance[p].length > 0) {
+                    instance[p].forEach(function(it) {
+                        collItemsToAdd.push({Entity: Entity, coll: coll, id: it});
+                      });
+                  }
                 } else {
                   persistence.set(ent, p, persistence.jsonToEntityVal(instance[p], fields[p]));
                 }
@@ -1068,7 +1171,16 @@ persistence.get = function(arg1, arg2) {
           }
         }
       }
-      this.flush(tx, callback);
+      session.flush(tx, function() {
+          persistence.asyncForEach(collItemsToAdd, function(collItem, callback) {
+              collItem.Entity.load(session, tx, collItem.id, function(obj) {
+                  collItem.coll.add(obj);
+                  callback();
+                });
+            }, function() {
+              session.flush(tx, callback);
+            });
+        });
     };
 
     /**
@@ -1080,7 +1192,7 @@ persistence.get = function(arg1, arg2) {
     persistence.dumpToJson = function(tx, entities, callback) {
       var args = argspec.getArgs(arguments, [
           { name: 'tx', optional: true, check: persistence.isTransaction, defaultValue: null },
-          { name: 'entities', optional: true, check: function(obj) { return !obj || (obj && obj.length && !obj.apply); }, defaultValue: null },
+          { name: 'entities', optional: true, check: function(obj) { return obj && obj.length && !obj.apply; }, defaultValue: null },
           { name: 'callback', optional: false, check: argspec.isCallback(), defaultValue: function(){} }
         ]);
       tx = args.tx;
@@ -1177,6 +1289,16 @@ persistence.get = function(arg1, arg2) {
 
     ////////////////// QUERY COLLECTIONS \\\\\\\\\\\\\\\\\\\\\\\
 
+    function Subscription(obj, eventType, fn) {
+      this.obj = obj;
+      this.eventType = eventType;
+      this.fn = fn;
+    }
+
+    Subscription.prototype.unsubscribe = function() {
+      this.obj.removeEventListener(this.eventType, this.fn);
+    };
+
     /**
      * Simple observable function constructor
      * @constructor
@@ -1186,21 +1308,11 @@ persistence.get = function(arg1, arg2) {
     }
 
     Observable.prototype.addEventListener = function (eventType, fn) {
-      if (typeof eventType == 'object') { // assume it's an array
-        var eventTypes = eventType;
-        for ( var i = 0; i < eventTypes.length; i++) {
-          var eventType = eventTypes[i];
-          if (!this.subscribers[eventType]) {
-            this.subscribers[eventType] = [];
-          }
-          this.subscribers[eventType].push(fn);
-        }
-      } else {
-        if (!this.subscribers[eventType]) {
-          this.subscribers[eventType] = [];
-        }
-        this.subscribers[eventType].push(fn);
+      if (!this.subscribers[eventType]) {
+        this.subscribers[eventType] = [];
       }
+      this.subscribers[eventType].push(fn);
+      return new Subscription(this, eventType, fn);
     };
 
     Observable.prototype.removeEventListener = function(eventType, fn) {
@@ -1218,10 +1330,9 @@ persistence.get = function(arg1, arg2) {
       if (!this.subscribers[eventType]) { // No subscribers to this event type
         return;
       }
-      for (var sid in this.subscribers[eventType]) {
-        if(this.subscribers[eventType].hasOwnProperty(sid)) {
-          this.subscribers[eventType][sid].apply(null, arguments);
-        }
+      var subscribers = this.subscribers[eventType].slice(0);
+      for(var i = 0; i < subscribers.length; i++) {
+        subscribers[i].apply(null, arguments);
       }
     };
 
@@ -1258,6 +1369,10 @@ persistence.get = function(arg1, arg2) {
       return "NULL";
     };
 
+    NullFilter.prototype.subscribeGlobally = function() { };
+
+    NullFilter.prototype.unsubscribeGlobally = function() { };
+
     /**
      * Filter that makes sure that both its left and right filter match
      * @param left left-hand filter object
@@ -1286,6 +1401,16 @@ persistence.get = function(arg1, arg2) {
       return this.left.toUniqueString() + " AND " + this.right.toUniqueString();
     };
 
+    AndFilter.prototype.subscribeGlobally = function(coll, entityName) { 
+      this.left.subscribeGlobally(coll, entityName);
+      this.right.subscribeGlobally(coll, entityName);
+    };
+
+    AndFilter.prototype.unsubscribeGlobally = function(coll, entityName) { 
+      this.left.unsubscribeGlobally(coll, entityName);
+      this.right.unsubscribeGlobally(coll, entityName);
+    };
+
     /**
      * Filter that makes sure that either its left and right filter match
      * @param left left-hand filter object
@@ -1312,6 +1437,16 @@ persistence.get = function(arg1, arg2) {
 
     OrFilter.prototype.toUniqueString = function() {
       return this.left.toUniqueString() + " OR " + this.right.toUniqueString();
+    };
+
+    OrFilter.prototype.subscribeGlobally = function(coll, entityName) { 
+      this.left.subscribeGlobally(coll, entityName);
+      this.right.subscribeGlobally(coll, entityName);
+    };
+
+    OrFilter.prototype.unsubscribeGlobally = function(coll, entityName) { 
+      this.left.unsubscribeGlobally(coll, entityName);
+      this.right.unsubscribeGlobally(coll, entityName);
     };
 
     /**
@@ -1381,6 +1516,14 @@ persistence.get = function(arg1, arg2) {
       }
     };
 
+    PropertyFilter.prototype.subscribeGlobally = function(coll, entityName) {
+      persistence.subscribeToGlobalPropertyListener(coll, entityName, this.property);
+    };
+
+    PropertyFilter.prototype.unsubscribeGlobally = function(coll, entityName) {
+      persistence.unsubscribeFromGlobalPropertyListener(coll, entityName, this.property);
+    };
+
     PropertyFilter.prototype.toUniqueString = function() {
       var val = this.value;
       if(val && val._type) {
@@ -1399,6 +1542,9 @@ persistence.get = function(arg1, arg2) {
      */
     persistence.uniqueQueryCollection = function(coll) {
       var entityName = coll._entityName;
+      if(coll._items) { // LocalQueryCollection
+        return coll;
+      }
       if(!this.queryCollectionCache[entityName]) {
         this.queryCollectionCache[entityName] = {};
       }
@@ -1418,6 +1564,33 @@ persistence.get = function(arg1, arg2) {
     }
 
     QueryCollection.prototype = new Observable();
+
+    QueryCollection.prototype.oldAddEventListener = QueryCollection.prototype.addEventListener;
+
+    QueryCollection.prototype.setupSubscriptions = function() { 
+      this._filter.subscribeGlobally(this, this._entityName);
+    };
+
+    QueryCollection.prototype.teardownSubscriptions = function() { 
+      this._filter.unsubscribeGlobally(this, this._entityName);
+    };
+
+    QueryCollection.prototype.addEventListener = function(eventType, fn) {
+      var that = this;
+      var subscription = this.oldAddEventListener(eventType, fn);
+      if(this.subscribers[eventType].length === 1) { // first subscriber
+        this.setupSubscriptions();
+      }
+      subscription.oldUnsubscribe = subscription.unsubscribe;
+      subscription.unsubscribe = function() {
+        this.oldUnsubscribe();
+
+        if(that.subscribers[eventType].length === 0) { // last subscriber
+          that.teardownSubscriptions();
+        }
+      };
+      return subscription;
+    };
 
     /**
      * Function called when session is flushed, returns list of SQL queries to execute
@@ -1509,7 +1682,7 @@ persistence.get = function(arg1, arg2) {
       // Add global listener (TODO: memory leak waiting to happen!)
       var session = this._session;
       c = session.uniqueQueryCollection(c);
-      session.subscribeToGlobalPropertyListener(c, this._entityName, property);
+      //session.subscribeToGlobalPropertyListener(c, this._entityName, property);
       return session.uniqueQueryCollection(c);
     };
 
@@ -1650,6 +1823,20 @@ persistence.get = function(arg1, arg2) {
       this.triggerEvent('add', this, obj);
       this.triggerEvent('change', this, obj);
     }
+    
+    /**
+     * Adds an an array of objects to a collection
+     * @param obj the object to add
+     */
+    QueryCollection.prototype.addAll = function(objs) {
+      for(var i = 0; i < objs.length; i++) {
+        var obj = objs[i];
+        this._session.add(obj);
+        this._filter.makeFit(obj);
+        this.triggerEvent('add', this, obj);
+      }
+      this.triggerEvent('change', this);
+    }
 
     /**
      * Removes an object from a collection
@@ -1762,11 +1949,23 @@ persistence.get = function(arg1, arg2) {
     ManyToManyDbQueryCollection.prototype.add = function(obj) {
       if(!arrayContains(this._localAdded, obj)) {
         this._session.add(obj);
-        this._localAdded.push(obj);
+        this._localAdded.push(obj);	// using Gwt code to to add this record
         this.triggerEvent('add', this, obj);
         this.triggerEvent('change', this, obj);
       }
     };
+
+    ManyToManyDbQueryCollection.prototype.addAll = function(objs) {
+      for(var i = 0; i < objs.length; i++) {
+        var obj = objs[i];
+        if(!arrayContains(this._localAdded, obj)) {
+          this._session.add(obj);
+          this._localAdded.push(obj);	// using Gwt code to to add this record
+          this.triggerEvent('add', this, obj);
+        }
+      }
+      this.triggerEvent('change', this);
+    }
 
     ManyToManyDbQueryCollection.prototype.clone = function() {
       var c = DbQueryCollection.prototype.clone.call(this);
@@ -1781,7 +1980,7 @@ persistence.get = function(arg1, arg2) {
       if(arrayContains(this._localAdded, obj)) { // added locally, can just remove it from there
         arrayRemove(this._localAdded, obj);
       } else if(!arrayContains(this._localRemoved, obj)) {
-        this._localRemoved.push(obj);
+        this._localRemoved.push(obj);	// using Gwt code to to add this record
       }
       this.triggerEvent('remove', this, obj);
       this.triggerEvent('change', this, obj);
@@ -1804,11 +2003,24 @@ persistence.get = function(arg1, arg2) {
 
     LocalQueryCollection.prototype.add = function(obj) {
       if(!arrayContains(this._items, obj)) {
+        this._session.add(obj);
         this._items.push(obj);
         this.triggerEvent('add', this, obj);
         this.triggerEvent('change', this, obj);
       }
     };
+
+    LocalQueryCollection.prototype.addAll = function(objs) {
+      for(var i = 0; i < objs.length; i++) {
+        var obj = objs[i];
+        if(!arrayContains(this._items, obj)) {
+          this._session.add(obj);
+          this._items.push(obj);
+          this.triggerEvent('add', this, obj);
+        }
+      }
+      this.triggerEvent('change', this);
+    }
 
     LocalQueryCollection.prototype.remove = function(obj) {
       var items = this._items;
@@ -1874,6 +2086,7 @@ persistence.get = function(arg1, arg2) {
         callback = arguments[1]; // set to second argument
       }
       this._items = [];
+      this.triggerEvent('change', this);
       if(callback) callback();
     };
 
@@ -1899,7 +2112,10 @@ persistence.get = function(arg1, arg2) {
     persistence.ManyToManyDbQueryCollection = ManyToManyDbQueryCollection;
     persistence.LocalQueryCollection        = LocalQueryCollection;
     persistence.Observable                  = Observable;
-
+    persistence.Subscription                = Subscription;
+    persistence.AndFilter                   = AndFilter;
+    persistence.OrFilter                    = OrFilter;
+    persistence.PropertyFilter              = PropertyFilter;
   }());
 
 // ArgSpec.js library: http://github.com/zefhemel/argspecjs

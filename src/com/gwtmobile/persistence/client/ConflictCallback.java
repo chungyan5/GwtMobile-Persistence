@@ -15,12 +15,15 @@
  */
 package com.gwtmobile.persistence.client;
 
-import com.google.gwt.core.client.JavaScriptObject;
-
 /**
  * @author yan
  *
  */
 public interface ConflictCallback {
-	public void onConflict(JavaScriptObject conflicts, JavaScriptObject updatesToPush, Callback origCallback);
+    
+    
+    /**
+     * @param conflictContent in String[]: String[0] as Client content, String[1] as Server content 
+     */
+    public void onSuccess(String[] conflictContent);
 }

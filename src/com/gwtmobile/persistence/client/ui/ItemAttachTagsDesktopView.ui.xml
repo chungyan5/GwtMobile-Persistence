@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder
+	xmlns:ui="urn:ui:com.google.gwt.uibinder"
+	xmlns:g="urn:import:com.google.gwt.user.client.ui"
+	xmlns:m="urn:import:com.gwtmobile.ui.client.widgets">
+	<ui:style>
+		.modify {
+			-webkit-box-orient: vertical !important;
+			-webkit-box-align: start !important;		
+		}
+	</ui:style>
+	<g:HTMLPanel>
+		<m:HeaderPanel ui:field="header" leftButton="Back">
+			<g:Label>Confirm the Tag(s)</g:Label>			
+		</m:HeaderPanel>
+		<m:ScrollPanel>
+			<m:ListPanel ui:field="list" showArrow="false">
+				<m:ListItem styleName="{style.modify}">
+					<m:CheckBoxGroup ui:field="cBoxGroup">
+					</m:CheckBoxGroup>
+				</m:ListItem>
+			</m:ListPanel>
+		</m:ScrollPanel>
+		<m:Button ui:field="resetDb">Reset Db</m:Button>
+	</g:HTMLPanel>	
+</ui:UiBinder>

@@ -224,7 +224,7 @@ public class InstanceGenerator implements ClassGenerator {
 					new MethodGenerator(){
 						@Override
 						public void generateMethod() {
-							utils.println("var value = nativeObject." + getter.getName().substring(3) + ";");
+							utils.println("var value = nativeObject." + getter.getName().substring(3,4).toLowerCase() + getter.getName().substring(4) + ";");
 							//CHAR in SQLite has TEXT affinity.  
 							if (isCharReturnType) {
 								utils.println("return (value == null || value.length == 0) ? 0 : value.charCodeAt(0);"); 											
@@ -268,16 +268,16 @@ public class InstanceGenerator implements ClassGenerator {
 						@Override
 						public void generateMethod() {
 							if (isDateReturnType) {
-								utils.println("nativeObject." + getter.getName().substring(3) + " = (value == 0) ? null : new Date(value);");
+								utils.println("nativeObject." + getter.getName().substring(3,4).toLowerCase() + getter.getName().substring(4) + " = (value == 0) ? null : new Date(value);");
 							}
 							else if (isJsonReturnType) {
-								utils.println("nativeObject." + getter.getName().substring(3) + " = (value == null) ? null : JSON.parse(value);");
+								utils.println("nativeObject." + getter.getName().substring(3,4).toLowerCase() + getter.getName().substring(4) + " = (value == null) ? null : JSON.parse(value);");
 							}
 							else if (isCharReturnType) {
-								utils.println("nativeObject." + getter.getName().substring(3) + " = String.fromCharCode(value);");
+								utils.println("nativeObject." + getter.getName().substring(3,4).toLowerCase() + getter.getName().substring(4) + " = String.fromCharCode(value);");
 							}
 							else {
-								utils.println("nativeObject." + getter.getName().substring(3) + " = value;");
+								utils.println("nativeObject." + getter.getName().substring(3,4).toLowerCase() + getter.getName().substring(4) + " = value;");
 							}
 						}});
 		}

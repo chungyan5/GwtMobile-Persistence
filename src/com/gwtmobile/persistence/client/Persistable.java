@@ -16,6 +16,8 @@
 
 package com.gwtmobile.persistence.client;
 
+//import com.gwtmobile.persistence.client.domain.Item2MntTagTable;
+
 
 public interface Persistable {
 	String getId();
@@ -23,4 +25,5 @@ public interface Persistable {
 	<T extends Persistable> void fetch(Entity<T> entity, ScalarCallback<T> callback);
 	void selectJSON(Transaction transaction, String[] propertySpec, ScalarCallback<String> callback);
 	void selectJSON(String[] propertySpec, ScalarCallback<String> callback);
+//	Entity<Item2MntTagTable> getMany2ManyTableEntity();
 }
