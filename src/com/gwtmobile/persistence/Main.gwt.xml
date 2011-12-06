@@ -33,7 +33,6 @@
   	<source path='shared'/>
   	
 	<!-- Specify the app entry point class.                         -->
-	<entry-point class="com.gwtmobile.persistence.client.Main"/>
 	
 <!--  may remove if client have replacement -->
 
