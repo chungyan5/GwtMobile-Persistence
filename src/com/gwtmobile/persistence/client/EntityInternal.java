@@ -20,6 +20,10 @@ import java.util.Date;
 
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArrayString;
+import com.google.gwt.json.client.JSONArray;
+import com.google.gwt.json.client.JSONObject;
+import com.google.gwt.json.client.JSONParser;
+import com.google.gwt.json.client.JSONValue;
 
 public abstract class EntityInternal<T extends Persistable> implements Entity<T> {	
 	public abstract  T newInstance(JavaScriptObject nativeObject);
@@ -28,6 +32,16 @@ public abstract class EntityInternal<T extends Persistable> implements Entity<T>
 	public abstract Collection<T> newCollection(JavaScriptObject nativeCollection);
 	public abstract String getInverseRelationName(String rel);
 	public abstract String getEntityName();
+	
+//	protected static String many2ManyTableName = "";				// this Table Name is Non-Empty if this entity contains Many to Many relationship  
+//	protected static Entity<Item2MntTagTable> many2ManyTableEntity = null;
+	
+	/**
+	 * @return many2ManyTableEntity if Many-2-Many existing, otherwise return NULL 
+	 */
+//	public static Entity<Item2MntTagTable> getMany2ManyTableEntity() {
+//		return many2ManyTableEntity;
+//	}
 	
 	public void load(Transaction transaction, String id, ScalarCallback<T> callback) {
 		load(transaction, id, callback, getNativeObject(), this);
@@ -132,31 +146,101 @@ public abstract class EntityInternal<T extends Persistable> implements Entity<T>
 		}		
 	}-*/;
 	
-	private ScalarCallback<String> conflict_callback;
+	private ConflictCallback conflict_callback;
 	
 	@SuppressWarnings("unused")
-	private void processConflictCallback(String result) {
-		this.conflict_callback.onSuccess(result);
+//	private void processConflictCallback(JavaScriptObject jsonJavaScriptObject) {
+    private void processConflictCallback(String resultJson) {
+
+//      JSONArray jsonArray = new JSONArray(jsonJavaScriptObject);
+//      JSONValue jsonValue = jsonArray.get(0);
+	    
+	    /*JSONValue jsonWhole = JSONParser.parseLenient(resultJson);
+	    JSONArray jsonArray = jsonWhole.isArray();
+	    JSONValue json = jsonArray.get(0);
+	    JSONObject jsonObject = json.isObject();*/
+        String[] returnStrArray = new String[2];
+	    /*returnStrArray[0] = jsonObject.get("local").isObject().get("name").toString();
+	    returnStrArray[1] = jsonObject.get("remote").isObject().get("name").toString();*/
+	    
+//        this.conflict_callback.onSuccess(jsonValue.isString().stringValue());
+//        this.conflict_callback.onSuccess(resultJson.toString());
+        this.conflict_callback.onSuccess(returnStrArray);
 	}
 	
-	public final native JavaScriptObject onConflictHandler() /*-{
+	public final native JavaScriptObject onConflictHandler(EntityInternal<T> self) /*-{
 		return function(conflicts, updatesToPush, persistence_sync_internal_callback) {
 			$entry(
-				this.@com.gwtmobile.persistence.client.EntityInternal::processConflictCallback(Ljava/lang/String;)(JSON.stringify(conflicts))
-			);																					// application code
+                self.@com.gwtmobile.persistence.client.EntityInternal::processConflictCallback(Ljava/lang/String;)(JSON.stringify(conflicts))
+			);																			// application code
 			persistence_sync_internal_callback();
 		}; 
 	}-*/;
+//    self.@com.gwtmobile.persistence.client.EntityInternal::processConflictCallback(Lcom/google/gwt/core/client/JavaScriptObject;)(conflicts)
 	
-	public void syncAll(ScalarCallback<String> conflict_callback, Callback callback) {
+	public void syncAll(final ConflictCallback conflict_callback, final Callback callback) {
 		this.conflict_callback = conflict_callback;
-		syncAll(getNativeObject(), onConflictHandler(), callback);
+		syncAll(getNativeObject(), onConflictHandler(this), new Callback() { 
+			@Override
+			public void onSuccess() {
+			    /*				
+			// after sync this Entity, may be sync the relationship table as well ==========================
+				if (many2ManyTableName.length()!=0) {
+					
+					// sync many2ManyTableEntity bet. client and server ====================================
+					many2ManyTableEntity.syncAll(conflict_callback, new Callback() {
+
+						@Override
+						public void onSuccess() {
+							many2ManyTableEntity.syncAll(conflict_callback, new Callback() {
+
+								@Override
+								public void onSuccess() {
+									
+					// copy data fr. many2ManyTableEntity to local many-to-many table =========================================
+									many2ManyTableEntity.all().list(new CollectionCallback<Item_MNTTags_MNTTagGwt>() {
+										@Override
+										public void onSuccess(Item_MNTTags_MNTTagGwt[] results) {
+											// TODO Auto-generated method stub
+											for (int i=0;i<results.length;i++) {
+												results[i].getItem_MNTTags()
+												results[i].getMNTTag_Items()
+												
+											}*/
+											
+											callback.onSuccess();
+										/*}
+									});
+								}
+								
+							});
+						}
+						
+					});
+				}*/
+			}
+		});
 	}
 	  
 	public native void syncAll(JavaScriptObject nativeEntity, JavaScriptObject ConflictHandler, Callback callback) /*-{
 	    nativeEntity.syncAll(ConflictHandler, function() {
 			callback.@com.gwtmobile.persistence.client.Callback::onSuccess()();
 		});
+	}-*/;
+	
+	
+	/**
+	 * @return if Many2Many Existing, return a valid Table name, otherwise a empty string return 
+	 */
+	public String getMany2ManyTableName() {
+		return getMany2ManyTableName(getNativeObject());
+	}
+	
+	/**
+	 * @return if Many2Many Existing, return a valid Table name, otherwise a empty string return 
+	 */
+	public native String getMany2ManyTableName(JavaScriptObject nativeEntity) /*-{
+		return "";
 	}-*/;
 	
 }
