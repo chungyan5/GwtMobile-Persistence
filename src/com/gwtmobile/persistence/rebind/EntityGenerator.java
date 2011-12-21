@@ -99,7 +99,8 @@ public class EntityGenerator implements ClassGenerator {
 					utils.println("hasOne(nativeEntity, \"%s\", hasOne%s.getNativeObject());", 
 							hasOneRelColName, hasOneRelColName);
 				}
-				utils.println("enableSync(nativeEntity, \"/\" + \"%s\" + \"Updates\");", requestedClassName);
+				utils.println("enableSync(nativeEntity, \"\" + \"%s\" + \"Updates\");", requestedClassName);
+//				utils.println("enableSync(nativeEntity, \"/\" + \"%s\" + \"Updates\");", requestedClassName);
 			}
 		});
 		
