@@ -24,6 +24,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+var SERVER_LOCATION = "http://59.148.253.117/mnt/";
+
 if(!window.persistence) { // persistence.js not loaded!
   throw new Error("persistence.js should be loaded before persistence.sync.js");
 }
@@ -34,6 +36,8 @@ persistence.sync.getJSON = function(uri, callback, errorCallback) {
     var xmlHttp = new XMLHttpRequest();
     xmlHttp.open("GET", uri, true);
 //    xmlHttp.open("GET", "http://multiplenestingtagging.appspot.com" + uri, true);
+//  xmlHttp.open("GET", SERVER_LOCATION + uri, true);
+//  xmlHttp.open("GET", "http://59.148.253.117/mnt/" + uri, true);
     xmlHttp.send();
     xmlHttp.onreadystatechange = function() {
       if(xmlHttp.readyState==4) {
@@ -50,6 +54,8 @@ persistence.sync.postJSON = function(uri, data, callback) {
     var xmlHttp = new XMLHttpRequest();
     xmlHttp.open("POST", uri, true);
 //    xmlHttp.open("POST", "http://multiplenestingtagging.appspot.com" + uri, true);
+//  xmlHttp.open("POST", SERVER_LOCATION + uri, true);
+//  xmlHttp.open("POST", "http://59.148.253.117/mnt/" + uri, true);
     xmlHttp.setRequestHeader('Content-Type', 'application/json');
     xmlHttp.send(data);
     xmlHttp.onreadystatechange = function() {
